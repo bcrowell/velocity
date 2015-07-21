@@ -1,0 +1,128 @@
+<!DOCTYPE html>    
+<!--
+  (c) 2015 Benjamin Crowell, GPL v3
+  Based on sample code by:
+    Tom Campbell, http://htmlcheats.com/html/resize-the-html5-canvas-dyamically/
+    Eric Drowell, http://www.html5canvastutorials.com/advanced/html5-canvas-mouse-coordinates/
+-->
+<head>
+  <meta charset="utf-8">
+  <title>Velocity and acceleration of your mouse</title>
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0px;
+      border: 0;
+      overflow: hidden; /*  Disable scrollbars */
+      display: block;  /* No floating content on sides */
+    }
+  </style>
+</head>
+ 
+<body>
+ 
+  <canvas id='canvas' style = 'position: absolute; left: 0px; top: 0px;' >
+  </canvas>
+  
+  <script>
+    (function() {
+      var canvas = document.getElementById('canvas');
+      var context = canvas.getContext('2d');
+      var canvas_w = context.canvas.width;
+      var canvas_h = context.canvas.height;
+
+      function filled_array(size,fill_value) {
+        // http://stackoverflow.com/a/13735425/1142217
+        return Array.apply(null, Array(size)).map(Number.prototype.valueOf,fill_value);
+      }
+      
+      var TIME_INTERVAL = 10; // milliseconds
+
+      // circular buffer
+      var BUFFER_SIZE = 1000;
+      var position_data = filled_array(BUFFER_SIZE,0); 
+      var last_valid_position = -1; // no valid data yet
+      var next_position = 0;
+
+      var current_mouse_x = 0;
+      var current_mouse_y = 0;
+      var t = 0;
+
+      function initialize() {
+        window.addEventListener('resize',handle_resize_canvas,false);
+        handle_resize_canvas(); // Draw canvas border for the first time.
+        canvas.addEventListener('mousemove',handle_mouse_move,false);
+        setInterval(handle_interval_timer,TIME_INTERVAL);
+      }
+
+      initialize();
+
+      function handle_interval_timer() {
+        t = t + TIME_INTERVAL;
+        position_data[next_position] = current_mouse_y;
+        if (last_valid_position<next_position) {last_valid_position=next_position;}
+        next_position++;
+        if (next_position>BUFFER_SIZE-1) {
+          next_position=0;
+          last_valid_position = -1;
+          redraw(true);
+        }
+        else {
+          redraw(false);
+        }
+      }
+
+        
+      function redraw(is_from_scratch) {
+        canvas_w = context.canvas.width;
+        canvas_h = context.canvas.height;
+
+        if (is_from_scratch) {
+          context.clearRect(0, 0, canvas_w, canvas_h);
+          context.beginPath();
+        }
+        var cx = canvas_w/2;
+        var cy = canvas_h/2;
+        var X_SCALE = canvas_w/BUFFER_SIZE;
+        var i;
+        var start_at = last_valid_position;
+        if (is_from_scratch) {start_at=1;}
+        for (i=start_at; i<=last_valid_position; i++) {
+          var x = i*X_SCALE;
+          var y1 = position_data[i-1];
+          var y2 = position_data[i];
+          context.moveTo(x,y1);
+          context.lineTo(x+X_SCALE,y2);
+          context.stroke();
+        }
+      }
+    
+      function handle_resize_canvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        redraw(true);
+      }
+
+      function get_mouse_position(canvas, event) {
+        var rect = canvas.getBoundingClientRect();
+        return {
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top
+        };
+      }
+
+      function handle_mouse_move(event) {
+        var mouse_position = get_mouse_position(canvas, event);
+        current_mouse_x = mouse_position.x;
+        current_mouse_y = mouse_position.y;
+        // console.log("x="+x+", y="+y);
+      }
+
+    
+    })();
+  </script>
+
+</body>
+ 
+</html>
