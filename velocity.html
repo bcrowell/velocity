@@ -36,14 +36,18 @@
         // http://stackoverflow.com/a/13735425/1142217
         return Array.apply(null, Array(size)).map(Number.prototype.valueOf,fill_value);
       }
-      
-      var TIME_INTERVAL = 10; // milliseconds
 
-      // circular buffer
-      var BUFFER_SIZE = 1000;
-      var position_data = filled_array(BUFFER_SIZE,0); 
-      var last_valid_position = -1; // no valid data yet
-      var next_position = 0;
+      var BUFFER_SIZE = 1000;      
+      Graph = function() {
+        // circular buffer
+        this.buffer_size = BUFFER_SIZE;
+        this.data = filled_array(this.buffer_size,0); 
+        this.last_valid_time = -1; // no valid data yet
+        this.next_time = 0;
+      };
+      var position = new Graph();
+
+      var TIME_INTERVAL = 10; // milliseconds
 
       var current_mouse_x = 0;
       var current_mouse_y = 0;
@@ -60,19 +64,18 @@
 
       function handle_interval_timer() {
         t = t + TIME_INTERVAL;
-        position_data[next_position] = current_mouse_y;
-        if (last_valid_position<next_position) {last_valid_position=next_position;}
-        next_position++;
-        if (next_position>BUFFER_SIZE-1) {
-          next_position=0;
-          last_valid_position = -1;
+        position.data[position.next_time] = current_mouse_y;
+        if (position.last_valid_time<position.next_time) {position.last_valid_time=position.next_time;}
+        position.next_time++;
+        if (position.next_time>position.buffer_size-1) {
+          position.next_time=0;
+          position.last_valid_time = -1;
           redraw(true);
         }
         else {
           redraw(false);
         }
       }
-
         
       function redraw(is_from_scratch) {
         canvas_w = context.canvas.width;
@@ -86,12 +89,12 @@
         var cy = canvas_h/2;
         var X_SCALE = canvas_w/BUFFER_SIZE;
         var i;
-        var start_at = last_valid_position;
+        var start_at = position.last_valid_time;
         if (is_from_scratch) {start_at=1;}
-        for (i=start_at; i<=last_valid_position; i++) {
+        for (i=start_at; i<=position.last_valid_time; i++) {
           var x = i*X_SCALE;
-          var y1 = position_data[i-1];
-          var y2 = position_data[i];
+          var y1 = position.data[i-1];
+          var y2 = position.data[i];
           context.moveTo(x,y1);
           context.lineTo(x+X_SCALE,y2);
           context.stroke();
