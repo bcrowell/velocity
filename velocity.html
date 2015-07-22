@@ -82,6 +82,7 @@
         if (previous_time == -1) {previous_time=position.buffer_size-1;}
         var previous_y = position.data[previous_time];
         position.new_data_point(current_mouse_y);
+        velocity.new_data_point(current_mouse_y-previous_y);
       }
         
       function redraw(graph,is_from_scratch) {
@@ -111,8 +112,11 @@
     
       function handle_resize_canvas() {
         position.canvas.width = window.innerWidth;
-        position.canvas.height = window.innerHeight;
+        position.canvas.height = window.innerHeight/2;
+        velocity.canvas.width = window.innerWidth;
+        velocity.canvas.height = window.innerHeight/2;
         redraw(position,true);
+        redraw(velocity,true);
       }
 
       function get_mouse_position(canvas, event) {
