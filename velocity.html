@@ -22,15 +22,10 @@
  
 <body>
  
-  <canvas id='canvas' style = 'position: absolute; left: 0px; top: 0px;' >
-  </canvas>
+  <canvas id='x_canvas' style = 'position: absolute; left: 0px; top: 0px;' ></canvas>
   
   <script>
     (function() {
-      var canvas = document.getElementById('canvas');
-      var context = canvas.getContext('2d');
-      var canvas_w = context.canvas.width;
-      var canvas_h = context.canvas.height;
 
       function filled_array(size,fill_value) {
         // http://stackoverflow.com/a/13735425/1142217
@@ -38,14 +33,19 @@
       }
 
       var BUFFER_SIZE = 1000;      
-      Graph = function() {
+      Graph = function(canvas_id) {
+        this.canvas_id = canvas_id;
         // circular buffer
         this.buffer_size = BUFFER_SIZE;
         this.data = filled_array(this.buffer_size,0); 
         this.last_valid_time = -1; // no valid data yet
         this.next_time = 0;
+        this.canvas = document.getElementById(canvas_id);
+        this.context = this.canvas.getContext('2d');
+        this.canvas_w = this.context.canvas.width;
+        this.canvas_h = this.context.canvas.height;
       };
-      var position = new Graph();
+      var position = new Graph('x_canvas');
 
       var TIME_INTERVAL = 10; // milliseconds
 
@@ -56,7 +56,7 @@
       function initialize() {
         window.addEventListener('resize',handle_resize_canvas,false);
         handle_resize_canvas(); // Draw canvas border for the first time.
-        canvas.addEventListener('mousemove',handle_mouse_move,false);
+        position.canvas.addEventListener('mousemove',handle_mouse_move,false);
         setInterval(handle_interval_timer,TIME_INTERVAL);
       }
 
@@ -78,16 +78,17 @@
       }
         
       function redraw(is_from_scratch) {
-        canvas_w = context.canvas.width;
-        canvas_h = context.canvas.height;
+        // qwe: change position. to argument
+        position.canvas_w = position.context.canvas.width;
+        position.canvas_h = position.context.canvas.height;
 
         if (is_from_scratch) {
-          context.clearRect(0, 0, canvas_w, canvas_h);
-          context.beginPath();
+          position.context.clearRect(0, 0, position.canvas_w, position.canvas_h);
+          position.context.beginPath();
         }
-        var cx = canvas_w/2;
-        var cy = canvas_h/2;
-        var X_SCALE = canvas_w/BUFFER_SIZE;
+        var cx = position.canvas_w/2;
+        var cy = position.canvas_h/2;
+        var X_SCALE = position.canvas_w/BUFFER_SIZE;
         var i;
         var start_at = position.last_valid_time;
         if (is_from_scratch) {start_at=1;}
@@ -95,15 +96,15 @@
           var x = i*X_SCALE;
           var y1 = position.data[i-1];
           var y2 = position.data[i];
-          context.moveTo(x,y1);
-          context.lineTo(x+X_SCALE,y2);
-          context.stroke();
+          position.context.moveTo(x,y1);
+          position.context.lineTo(x+X_SCALE,y2);
+          position.context.stroke();
         }
       }
     
       function handle_resize_canvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        position.canvas.width = window.innerWidth;
+        position.canvas.height = window.innerHeight;
         redraw(true);
       }
 
@@ -116,7 +117,7 @@
       }
 
       function handle_mouse_move(event) {
-        var mouse_position = get_mouse_position(canvas, event);
+        var mouse_position = get_mouse_position(position.canvas, event);
         current_mouse_x = mouse_position.x;
         current_mouse_y = mouse_position.y;
         // console.log("x="+x+", y="+y);
