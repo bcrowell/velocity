@@ -22,6 +22,7 @@
  
 <body>
  
+  <p id="message"></p> <!-- content is set by display_message() -->
   <canvas id='x_canvas' style = 'position: absolute; left: 0px; top: 0px;' ></canvas>
   <canvas id='v_canvas' style = 'position: absolute; left: 0px; top: 50%;' ></canvas>
   
@@ -33,23 +34,65 @@
         return Array.apply(null, Array(size)).map(Number.prototype.valueOf,fill_value);
       }
 
+      function display_message(m) {
+        document.getElementById("message").innerHTML = m;
+      }
+      var graphing_is_active = true;
+      function stop_graphing() {
+        graphing_is_active = false;
+        display_message("Click in one of the graphs to erase them and make another set.");
+      }
+      function start_graphing() {
+        graphing_is_active = true;
+        display_message("Put the mouse cursor in the position graph and move it up and down.");
+      }
+      start_graphing();
+
+      var TIME_INTERVAL = 3; // milliseconds; this is how often we sample the mouse's position and plot a new point
+
       var BUFFER_SIZE = 1000;      
-      Graph = function(canvas_id) {
-        this.canvas_id = canvas_id;
+      var Graph = function(args) {
+        this.canvas_id = args.id;
+        this.smoothing = args.smoothing; // factor by which exponential tail falls off with each time increment; 0=no smoothing
+                                         // This implements a causal low-pass filter. If set too high, we see artifacts such
+                                         // as decaying exponential tail on what should be a narrow spike.
+        this.prescale = args.prescale;
+        this.end_sweep = args.end_sweep; // a function to call back to when we have swept to the right edge of the screen
         // circular buffer
         this.buffer_size = BUFFER_SIZE;
         this.data = filled_array(this.buffer_size,0); 
         this.last_valid_time = -1; // no valid data yet
         this.next_time = 0;
-        this.canvas = document.getElementById(canvas_id);
+        this.canvas = document.getElementById(this.canvas_id);
+
+        this.canvas.contentEditable=true; // make it able to take keyboard focus
+        this.canvas.addEventListener('mouseover',function (event) {
+          event.target.focus(); // give it the focus whenever the mouse moves over it
+        },false);
+        this.canvas.addEventListener('mouseout',function (event) {
+          event.target.blur();
+        },false);
+
         this.context = this.canvas.getContext('2d');
         this.canvas_w = this.context.canvas.width;
         this.canvas_h = this.context.canvas.height;
-        this.new_data_point = function (d) {
+        this.has_wrapped = false;
+        this.new_data_point = function (raw) { // to fit on graph, d should range from -1 to 1
+          if (!graphing_is_active) {return;}
+          var d = raw*this.prescale;
+          var previous_time = this.next_time-1;
+          if (previous_time>=0 || this.has_wrapped) { // we have a previous data point
+            if (previous_time<0) {previous_time=this.buffer_size-1;}
+            d = this.smoothing*this.data[previous_time]+(1.0-this.smoothing)*d; // smooth by averaging with exponentially decaying tail
+          }
           this.data[this.next_time] = d;
           if (this.last_valid_time<this.next_time) {this.last_valid_time=this.next_time;}
           this.next_time++;
+          if (this.next_time==this.buffer_size-1) { // we've reached the end of a sweep
+            if (this.end_sweep!==undefined) {this.end_sweep();}
+          }
           if (this.next_time>this.buffer_size-1) {
+            this.has_wrapped = true;
             this.next_time=0;
             this.last_valid_time = -1;
             redraw(this,true);
@@ -59,18 +102,23 @@
           }
         };
       };
-      var position = new Graph('x_canvas');
-      var velocity = new Graph('v_canvas');
+      var position = new Graph({id:'x_canvas',smoothing:0.5,prescale:1.0,end_sweep:function() {stop_graphing()}});
+      var velocity = new Graph({id:'v_canvas',smoothing:0.5,prescale:3.0});
 
-      var TIME_INTERVAL = 10; // milliseconds
-
-      var current_mouse_y = 0; // expressed such that 0.0=top of window, 1.0=bottom
+      var current_mouse_y = 0; // expressed such that 1.0=top of window, -1.0=bottom
       var t = 0;
+
+      function attach_event_listeners_to_a_graph(graph) {
+        graph.canvas.addEventListener('keydown',handle_key_down,false);
+        graph.canvas.addEventListener('click',handle_click,false);
+      }
 
       function initialize() {
         window.addEventListener('resize',handle_resize_canvas,false);
         handle_resize_canvas(); // Draw canvas border for the first time.
         position.canvas.addEventListener('mousemove',handle_mouse_move,false);
+        attach_event_listeners_to_a_graph(position);
+        attach_event_listeners_to_a_graph(velocity);
         setInterval(handle_interval_timer,TIME_INTERVAL);
       }
 
@@ -96,7 +144,8 @@
         var cx = graph.canvas_w/2;
         var cy = graph.canvas_h/2;
         var x_scale = graph.canvas_w/BUFFER_SIZE;
-        var y_scale = graph.canvas_h;
+        var y_scale = 0.5*graph.canvas_h;
+        function transform_y(y) {return y_scale*(1.0-y)}
         var i;
         var start_at = graph.last_valid_time;
         if (is_from_scratch) {start_at=1;}
@@ -104,8 +153,8 @@
           var x = i*x_scale;
           var y1 = graph.data[i-1];
           var y2 = graph.data[i];
-          graph.context.moveTo(x,y1*y_scale);
-          graph.context.lineTo(x+x_scale,y2*y_scale);
+          graph.context.moveTo(x,transform_y(y1));
+          graph.context.lineTo(x+x_scale,transform_y(y2));
           graph.context.stroke();
         }
       }
@@ -127,9 +176,19 @@
         };
       }
 
+      function handle_key_down(event) {
+        // console.log("got keydown");
+        start_graphing();
+      }
+
+      function handle_click(event) {
+        // console.log("got click");
+        start_graphing();
+      }
+
       function handle_mouse_move(event) {
         var mouse_position = get_mouse_position(position.canvas, event);
-        current_mouse_y = mouse_position.y/position.canvas_h;
+        current_mouse_y = 1.0-2.0*mouse_position.y/position.canvas_h; // force it into range from -1 (bottom) to 1 (top)
         // console.log("x="+x+", y="+y);
       }
 
