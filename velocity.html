@@ -23,6 +23,7 @@
 <body>
  
   <canvas id='x_canvas' style = 'position: absolute; left: 0px; top: 0px;' ></canvas>
+  <canvas id='v_canvas' style = 'position: absolute; left: 0px; top: 50%;' ></canvas>
   
   <script>
     (function() {
@@ -44,13 +45,26 @@
         this.context = this.canvas.getContext('2d');
         this.canvas_w = this.context.canvas.width;
         this.canvas_h = this.context.canvas.height;
+        this.new_data_point = function (d) {
+          this.data[this.next_time] = d;
+          if (this.last_valid_time<this.next_time) {this.last_valid_time=this.next_time;}
+          this.next_time++;
+          if (this.next_time>this.buffer_size-1) {
+            this.next_time=0;
+            this.last_valid_time = -1;
+            redraw(this,true);
+          }
+          else {
+            redraw(this,false);
+          }
+        };
       };
       var position = new Graph('x_canvas');
+      var velocity = new Graph('v_canvas');
 
       var TIME_INTERVAL = 10; // milliseconds
 
-      var current_mouse_x = 0;
-      var current_mouse_y = 0;
+      var current_mouse_y = 0; // expressed such that 0.0=top of window, 1.0=bottom
       var t = 0;
 
       function initialize() {
@@ -64,48 +78,41 @@
 
       function handle_interval_timer() {
         t = t + TIME_INTERVAL;
-        position.data[position.next_time] = current_mouse_y;
-        if (position.last_valid_time<position.next_time) {position.last_valid_time=position.next_time;}
-        position.next_time++;
-        if (position.next_time>position.buffer_size-1) {
-          position.next_time=0;
-          position.last_valid_time = -1;
-          redraw(true);
-        }
-        else {
-          redraw(false);
-        }
+        var previous_time = position.next_time-1;
+        if (previous_time == -1) {previous_time=position.buffer_size-1;}
+        var previous_y = position.data[previous_time];
+        position.new_data_point(current_mouse_y);
       }
         
-      function redraw(is_from_scratch) {
-        // qwe: change position. to argument
-        position.canvas_w = position.context.canvas.width;
-        position.canvas_h = position.context.canvas.height;
+      function redraw(graph,is_from_scratch) {
+        graph.canvas_w = graph.context.canvas.width;
+        graph.canvas_h = graph.context.canvas.height;
 
         if (is_from_scratch) {
-          position.context.clearRect(0, 0, position.canvas_w, position.canvas_h);
-          position.context.beginPath();
+          graph.context.clearRect(0, 0, graph.canvas_w, graph.canvas_h);
+          graph.context.beginPath();
         }
-        var cx = position.canvas_w/2;
-        var cy = position.canvas_h/2;
-        var X_SCALE = position.canvas_w/BUFFER_SIZE;
+        var cx = graph.canvas_w/2;
+        var cy = graph.canvas_h/2;
+        var x_scale = graph.canvas_w/BUFFER_SIZE;
+        var y_scale = graph.canvas_h;
         var i;
-        var start_at = position.last_valid_time;
+        var start_at = graph.last_valid_time;
         if (is_from_scratch) {start_at=1;}
-        for (i=start_at; i<=position.last_valid_time; i++) {
-          var x = i*X_SCALE;
-          var y1 = position.data[i-1];
-          var y2 = position.data[i];
-          position.context.moveTo(x,y1);
-          position.context.lineTo(x+X_SCALE,y2);
-          position.context.stroke();
+        for (i=start_at; i<=graph.last_valid_time; i++) {
+          var x = i*x_scale;
+          var y1 = graph.data[i-1];
+          var y2 = graph.data[i];
+          graph.context.moveTo(x,y1*y_scale);
+          graph.context.lineTo(x+x_scale,y2*y_scale);
+          graph.context.stroke();
         }
       }
     
       function handle_resize_canvas() {
         position.canvas.width = window.innerWidth;
         position.canvas.height = window.innerHeight;
-        redraw(true);
+        redraw(position,true);
       }
 
       function get_mouse_position(canvas, event) {
@@ -118,8 +125,7 @@
 
       function handle_mouse_move(event) {
         var mouse_position = get_mouse_position(position.canvas, event);
-        current_mouse_x = mouse_position.x;
-        current_mouse_y = mouse_position.y;
+        current_mouse_y = mouse_position.y/position.canvas_h;
         // console.log("x="+x+", y="+y);
       }
 
