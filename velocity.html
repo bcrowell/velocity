@@ -38,19 +38,22 @@
         document.getElementById("message").innerHTML = m;
       }
       var graphing_is_active = true;
+      var interval_id = -1; // for setInterval and clearInterval
       function stop_graphing() {
         graphing_is_active = false;
         display_message("Click in one of the graphs to erase them and make another set.");
+        if (interval_id != -1) {clearInterval(interval_id);}
       }
-      function start_graphing() {
+      function start_graphing() { // called by initialize() and also when you click to restart graphing
         graphing_is_active = true;
         display_message("Put the mouse cursor in the position graph and move it up and down.");
+        interval_id = setInterval(handle_interval_timer,TIME_INTERVAL);
       }
-      start_graphing();
 
       var TIME_INTERVAL = 3; // milliseconds; this is how often we sample the mouse's position and plot a new point
 
       var BUFFER_SIZE = 1000;      
+      var clock = 0; // shared by all Graph objects; is an index into data buffers, ranging from 0 to BUFFER_SIZE-1
       var Graph = function(args) {
         this.canvas_id = args.id;
         this.smoothing = args.smoothing; // factor by which exponential tail falls off with each time increment; 0=no smoothing
@@ -65,7 +68,6 @@
         this.buffer_size = BUFFER_SIZE;
         this.data = filled_array(this.buffer_size,0); 
         this.last_valid_time = -1; // no valid data yet
-        this.next_time = 0;
         this.canvas = document.getElementById(this.canvas_id);
 
         this.canvas.contentEditable=true; // make it able to take keyboard focus
@@ -83,20 +85,18 @@
         this.new_data_point = function (raw) { // to fit on graph, d should range from -1 to 1
           if (!graphing_is_active) {return;}
           var d = raw*this.prescale;
-          var previous_time = this.next_time-1;
+          var previous_time = clock-1;
           if (previous_time>=0 || this.has_wrapped) { // we have a previous data point
             if (previous_time<0) {previous_time=this.buffer_size-1;}
             d = this.smoothing*this.data[previous_time]+(1.0-this.smoothing)*d; // smooth by averaging with exponentially decaying tail
           }
-          this.data[this.next_time] = d;
-          if (this.last_valid_time<this.next_time) {this.last_valid_time=this.next_time;}
-          this.next_time++;
-          if (this.next_time==this.buffer_size-1) { // we've reached the end of a sweep
+          this.data[clock] = d;
+          if (this.last_valid_time<clock) {this.last_valid_time=clock;}
+          if (clock+1==this.buffer_size-1) { // we've reached the end of a sweep
             if (this.end_sweep!==undefined) {this.end_sweep();}
           }
-          if (this.next_time>this.buffer_size-1) {
+          if (clock+1>this.buffer_size-1) {
             this.has_wrapped = true;
-            this.next_time=0;
             this.last_valid_time = -1;
             redraw(this,true);
           }
@@ -123,18 +123,20 @@
         position.canvas.addEventListener('mousemove',handle_mouse_move,false);
         attach_event_listeners_to_a_graph(position);
         attach_event_listeners_to_a_graph(velocity);
-        setInterval(handle_interval_timer,TIME_INTERVAL);
+        start_graphing();
       }
 
       initialize();
 
       function handle_interval_timer() {
         t = t + TIME_INTERVAL;
-        var previous_time = position.next_time-1;
+        var previous_time = clock-1;
         if (previous_time == -1) {previous_time=position.buffer_size-1;}
         var previous_y = position.data[previous_time];
         position.new_data_point(current_mouse_y);
         velocity.new_data_point(current_mouse_y-previous_y);
+        clock = clock+1;
+        if (clock>BUFFER_SIZE-1) {clock=0}
       }
         
       function redraw(graph,is_from_scratch) {
