@@ -52,20 +52,26 @@
 
       var TIME_INTERVAL = 3; // milliseconds; this is how often we sample the mouse's position and plot a new point
 
-      var BUFFER_SIZE = 1000;      
-      var clock = 0; // shared by all Graph objects; is an index into data buffers, ranging from 0 to BUFFER_SIZE-1
+      var BUFFER_SIZE = 1000; // number of data-points to be graphed, which is smaller than the number collected, due to filtering
+                              // don't access this directly; use this.raw_buffer_size and this.cooked_buffer_size
+      var clock = 0; // shared by all Graph objects; is an index into data buffers
+                     // represents how much data we've actually acquired, not how much we've graphed; these differ because
+                     //         we have a moving window for filtering
+                     // ranges from 0 to this.raw_buffer_size-1
+                     // can be interrpeted as time in time in units of TIME_INTERVAL
       var Graph = function(args) {
         this.canvas_id = args.id;
-        this.smoothing = args.smoothing; // width of window for acausal filtering
+        this.smoothing = args.smoothing; // radius of window for acausal filtering
         this.prescale = args.prescale;
         this.end_sweep = args.end_sweep; // a function to call back to when we have swept to the right edge of the screen
         this.color = args.color;
         this.line_width = args.line_width;
         this.variable = args.variable; // string to use as a label on the axis for the dependent variable
         // circular buffer
-        this.buffer_size = BUFFER_SIZE;
-        this.raw_data = filled_array(this.buffer_size,0); // before low-pass filtering
-        this.data = filled_array(this.buffer_size,0); // after low-pass filtering
+        this.raw_buffer_size = BUFFER_SIZE+2*this.smoothing;
+        this.cooked_buffer_size = BUFFER_SIZE;
+        this.raw_data = filled_array(this.raw_buffer_size,0); // before low-pass filtering
+        this.data = filled_array(this.cooked_buffer_size,0); // after low-pass filtering
         this.last_valid_time = -1; // no valid data yet
         this.canvas = document.getElementById(this.canvas_id);
 
@@ -84,12 +90,23 @@
         this.new_data_point = function (raw) { // to fit on graph, d should range from -1 to 1
           if (!graphing_is_active) {return;}
           var d = raw*this.prescale;
-          this.data[clock] = d;
-          if (this.last_valid_time<clock) {this.last_valid_time=clock;}
-          if (clock+1==this.buffer_size-1) { // we've reached the end of a sweep
+          this.raw_data[clock] = d;
+          if (clock>=2*this.smoothing) { // we've accumulated enough raw data to start producing filtered data
+            var r = this.smoothing; // radius of window
+            var n_avg = 0;
+            var avg = 0;
+            for (var i=clock-2*r; i<=clock; i++) {
+              n_avg++;
+              avg = avg+this.raw_data[i];
+            }
+            avg = avg/n_avg;
+            this.data[clock-r] = avg;
+            if (this.last_valid_time<clock-r) {this.last_valid_time=clock-r;}
+          }
+          if (clock+1==this.raw_buffer_size-1) { // we've reached the end of a sweep
             if (this.end_sweep!==undefined) {this.end_sweep();}
           }
-          if (clock+1>this.buffer_size-1) {
+          if (clock+1>this.raw_buffer_size-1) {
             this.has_wrapped = true;
             this.last_valid_time = -1;
             redraw(this,true);
@@ -99,9 +116,9 @@
           }
         };
       };
-      var position = new Graph({id:'x_canvas',smoothing:0.5,prescale:1.0,color:'blue',line_width:2,variable:"x",
+      var position = new Graph({id:'x_canvas',smoothing:2,prescale:1.0,color:'blue',line_width:2,variable:"x",
                                end_sweep:function() {stop_graphing()}});
-      var velocity = new Graph({id:'v_canvas',smoothing:0.5,prescale:3.0,color:'red',line_width:2,variable:"v"});
+      var velocity = new Graph({id:'v_canvas',smoothing:10,prescale:20.0,color:'red',line_width:2,variable:"v"});
 
       var current_mouse_y = 0; // expressed such that 1.0=top of window, -1.0=bottom
       var t = 0;
@@ -125,12 +142,12 @@
       function handle_interval_timer() {
         t = t + TIME_INTERVAL;
         var previous_time = clock-1;
-        if (previous_time == -1) {previous_time=position.buffer_size-1;}
-        var previous_y = position.data[previous_time];
+        var previous_y = current_mouse_y;
+        if (previous_time>=0) {previous_y = position.raw_data[previous_time];}
         position.new_data_point(current_mouse_y);
         velocity.new_data_point(current_mouse_y-previous_y);
         clock = clock+1;
-        if (clock>BUFFER_SIZE-1) {clock=0}
+        if (clock>position.raw_buffer_size-1) {clock=0}
       }
         
       function redraw(graph,is_from_scratch) {
@@ -167,7 +184,7 @@
         graph.context.beginPath();
         var cx = graph.canvas_w/2;
         var cy = graph.canvas_h/2;
-        var x_scale = graph.canvas_w/BUFFER_SIZE;
+        var x_scale = graph.canvas_w/graph.cooked_buffer_size;
         var y_scale = 0.5*graph.canvas_h;
         function transform_y(y) {return y_scale*(1.0-y)}
         var start_at = graph.last_valid_time;
