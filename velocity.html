@@ -56,9 +56,7 @@
       var clock = 0; // shared by all Graph objects; is an index into data buffers, ranging from 0 to BUFFER_SIZE-1
       var Graph = function(args) {
         this.canvas_id = args.id;
-        this.smoothing = args.smoothing; // factor by which exponential tail falls off with each time increment; 0=no smoothing
-                                         // This implements a causal low-pass filter. If set too high, we see artifacts such
-                                         // as decaying exponential tail on what should be a narrow spike.
+        this.smoothing = args.smoothing; // width of window for acausal filtering
         this.prescale = args.prescale;
         this.end_sweep = args.end_sweep; // a function to call back to when we have swept to the right edge of the screen
         this.color = args.color;
@@ -66,7 +64,8 @@
         this.variable = args.variable; // string to use as a label on the axis for the dependent variable
         // circular buffer
         this.buffer_size = BUFFER_SIZE;
-        this.data = filled_array(this.buffer_size,0); 
+        this.raw_data = filled_array(this.buffer_size,0); // before low-pass filtering
+        this.data = filled_array(this.buffer_size,0); // after low-pass filtering
         this.last_valid_time = -1; // no valid data yet
         this.canvas = document.getElementById(this.canvas_id);
 
@@ -85,11 +84,6 @@
         this.new_data_point = function (raw) { // to fit on graph, d should range from -1 to 1
           if (!graphing_is_active) {return;}
           var d = raw*this.prescale;
-          var previous_time = clock-1;
-          if (previous_time>=0 || this.has_wrapped) { // we have a previous data point
-            if (previous_time<0) {previous_time=this.buffer_size-1;}
-            d = this.smoothing*this.data[previous_time]+(1.0-this.smoothing)*d; // smooth by averaging with exponentially decaying tail
-          }
           this.data[clock] = d;
           if (this.last_valid_time<clock) {this.last_valid_time=clock;}
           if (clock+1==this.buffer_size-1) { // we've reached the end of a sweep
