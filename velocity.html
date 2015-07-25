@@ -39,6 +39,7 @@
       }
       var graphing_is_active = true;
       var interval_id = -1; // for setInterval and clearInterval
+      var all_graphs = [];
       function stop_graphing() {
         graphing_is_active = false;
         display_message("Click in one of the graphs to erase them and make another set.");
@@ -48,6 +49,12 @@
         graphing_is_active = true;
         display_message("Put the mouse cursor in the position graph and move it up and down.");
         interval_id = setInterval(handle_interval_timer,TIME_INTERVAL);
+        for (var i=0; i<all_graphs.length; i++) {
+          var g = all_graphs[i];
+          g.last_valid_time = -1;
+          console.log("redrawing graph "+g.variable+", last_valid_time="+g.last_valid_time);
+          redraw(g,true);
+        }
       }
 
       var TIME_INTERVAL = 3; // milliseconds; this is how often we sample the mouse's position and plot a new point
@@ -58,7 +65,7 @@
                      // represents how much data we've actually acquired, not how much we've graphed; these differ because
                      //         we have a moving window for filtering
                      // ranges from 0 to this.raw_buffer_size-1
-                     // can be interrpeted as time in time in units of TIME_INTERVAL
+                     // can be interpeted as time in time in units of TIME_INTERVAL
       var Graph = function(args) {
         this.canvas_id = args.id;
         this.smoothing = args.smoothing; // radius of window for acausal filtering
@@ -86,7 +93,6 @@
         this.context = this.canvas.getContext('2d');
         this.canvas_w = this.context.canvas.width;
         this.canvas_h = this.context.canvas.height;
-        this.has_wrapped = false;
         this.new_data_point = function (raw) { // to fit on graph, d should range from -1 to 1
           if (!graphing_is_active) {return;}
           var d = raw*this.prescale;
@@ -101,24 +107,18 @@
             }
             avg = avg/n_avg;
             this.data[clock-r] = avg;
-            if (this.last_valid_time<clock-r) {this.last_valid_time=clock-r;}
+            this.last_valid_time=clock-r;
           }
           if (clock+1==this.raw_buffer_size-1) { // we've reached the end of a sweep
             if (this.end_sweep!==undefined) {this.end_sweep();}
           }
-          if (clock+1>this.raw_buffer_size-1) {
-            this.has_wrapped = true;
-            this.last_valid_time = -1;
-            redraw(this,true);
-          }
-          else {
-            redraw(this,false);
-          }
+          redraw(this,false);
         };
       };
       var position = new Graph({id:'x_canvas',smoothing:2,prescale:1.0,color:'blue',line_width:2,variable:"x",
                                end_sweep:function() {stop_graphing()}});
       var velocity = new Graph({id:'v_canvas',smoothing:10,prescale:20.0,color:'red',line_width:2,variable:"v"});
+      all_graphs = [position,velocity];
 
       var current_mouse_y = 0; // expressed such that 1.0=top of window, -1.0=bottom
       var t = 0;
@@ -189,6 +189,7 @@
         function transform_y(y) {return y_scale*(1.0-y)}
         var start_at = graph.last_valid_time;
         if (is_from_scratch) {start_at=1;}
+        if (clock%100==0) {console.log("drawing "+graph.variable+", clock="+clock+" start_at="+start_at+", last="+graph.last_valid_time)} // qwe
         for (var i=start_at; i<=graph.last_valid_time; i++) {
           var x = i*x_scale;
           var y1 = graph.data[i-1];
