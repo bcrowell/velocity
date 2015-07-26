@@ -12,10 +12,12 @@
 <body>
  
   <p id="message"></p> <!-- content is set by display_message() -->
-  <div style = 'height:90%'>
+  <div style = 'height:87%'>
     <canvas id='x_canvas'  ></canvas>
     <canvas id='v_canvas'  ></canvas>
+    <canvas id='a_canvas'  ></canvas> <!-- if this canvas is removed, the app still runs -->
   </div>
+  <p><a href="https://github.com/bcrowell/velocity">source code</a></p>
   
 <script src="load_external_js.js"></script>
 <script> load_external_js({src:"velocity.js"}); </script>
