@@ -1,3 +1,6 @@
+// (c) 2015 Benjamin Crowell, GPL v3
+// Uses sample code by Tom Campbell, http://htmlcheats.com/html/resize-the-html5-canvas-dyamically/
+
 // Populate the canvases with IDs x_canvas, v_canvas, and a_canvas with graphs of position, velocity, and acceleration
 // measuring the motion of the mouse.
 
@@ -41,6 +44,10 @@
                  // can be interpeted as time in time in units of TIME_INTERVAL
   var Graph = function(args) {
     this.canvas_id = args.id;
+    this.canvas = document.getElementById(this.canvas_id);
+    this.enabled = !(this.canvas===null);
+    if (!this.enabled) {return}
+
     this.smoothing = args.smoothing; // radius of window for acausal filtering
     this.prescale = args.prescale;
     this.end_sweep = args.end_sweep; // a function to call back to when we have swept to the right edge of the screen
@@ -53,7 +60,6 @@
     this.raw_data = filled_array(this.raw_buffer_size,0); // before low-pass filtering
     this.data = filled_array(this.cooked_buffer_size,0); // after low-pass filtering
     this.last_valid_time = -1; // no valid data yet
-    this.canvas = document.getElementById(this.canvas_id);
 
     this.canvas.contentEditable=true; // make it able to take keyboard focus
     this.canvas.addEventListener('mouseover',function (event) {
@@ -67,7 +73,7 @@
     this.canvas_w = this.context.canvas.width;
     this.canvas_h = this.context.canvas.height;
     this.new_data_point = function (raw) { // to fit on graph, d should range from -1 to 1
-      if (!graphing_is_active) {return;}
+      if (!graphing_is_active || !this.enabled) {return;}
       var d = raw*this.prescale;
       this.raw_data[clock] = d;
       if (clock>=2*this.smoothing) { // we've accumulated enough raw data to start producing filtered data
@@ -124,13 +130,13 @@
     velocity.new_data_point(current_v);
     var previous_v = current_v;
     if (previous_time>=0) {previous_v = velocity.raw_data[previous_time];}
-    // acceleration.new_data_point(current_v-previous_v);
-    acceleration.new_data_point(velocity.raw_data[clock]-velocity.raw_data[clock-5]);
+    if (acceleration.enabled) {acceleration.new_data_point(velocity.raw_data[clock]-velocity.raw_data[clock-5]);}
     clock = clock+1;
     if (clock>position.raw_buffer_size-1) {clock=0}
   }
     
   function redraw(graph,is_from_scratch) {
+    if (!graph.enabled) {return;}
     graph.canvas_w = graph.context.canvas.width;
     graph.canvas_h = graph.context.canvas.height;
 
@@ -185,10 +191,12 @@
   function handle_resize_canvas() {
     for (var i=0; i<all_graphs.length; i++) {
       var g = all_graphs[i];
-      g.last_valid_time = -1;
-      g.canvas.width = window.innerWidth;
-      g.canvas.height = window.innerHeight/2;
-      redraw(g,true);
+      if (g.enabled) {
+        g.last_valid_time = -1;
+        g.canvas.width = window.innerWidth;
+        g.canvas.height = window.innerHeight/2;
+        redraw(g,true);
+      }
     }
   }
 
