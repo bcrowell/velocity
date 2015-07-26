@@ -17,14 +17,16 @@
       overflow: hidden; /*  Disable scrollbars */
       display: block;  /* No floating content on sides */
     }
+    canvas {outline: none;}
   </style>
 </head>
  
 <body>
  
   <p id="message"></p> <!-- content is set by display_message() -->
-  <canvas id='x_canvas' style = 'position: absolute; left: 0px; top: 6%;' ></canvas>
-  <canvas id='v_canvas' style = 'position: absolute; left: 0px; top: 53%;' ></canvas>
+  <canvas id='x_canvas' style = 'height: 30%;' ></canvas>
+  <canvas id='v_canvas' style = 'height: 30%;' ></canvas>
+  <canvas id='a_canvas' style = 'height: 30%;' ></canvas>
   
   <script>
     (function() {
@@ -52,7 +54,6 @@
         for (var i=0; i<all_graphs.length; i++) {
           var g = all_graphs[i];
           g.last_valid_time = -1;
-          console.log("redrawing graph "+g.variable+", last_valid_time="+g.last_valid_time);
           redraw(g,true);
         }
       }
@@ -99,13 +100,15 @@
           this.raw_data[clock] = d;
           if (clock>=2*this.smoothing) { // we've accumulated enough raw data to start producing filtered data
             var r = this.smoothing; // radius of window
-            var n_avg = 0;
+            var norm = 0;
             var avg = 0;
             for (var i=clock-2*r; i<=clock; i++) {
-              n_avg++;
-              avg = avg+this.raw_data[i];
+              // var weight = Math.abs(r-(i-(clock-r))); // triangular shape
+              var weight = 1; // square shape
+              norm = norm+weight;
+              avg = avg+weight*this.raw_data[i];
             }
-            avg = avg/n_avg;
+            avg = avg/norm;
             this.data[clock-r] = avg;
             this.last_valid_time=clock-r;
           }
@@ -115,10 +118,11 @@
           redraw(this,false);
         };
       };
-      var position = new Graph({id:'x_canvas',smoothing:2,prescale:1.0,color:'blue',line_width:2,variable:"x",
+      var position =     new Graph({id:'x_canvas',smoothing:1,prescale:1.0,color:'blue',line_width:2,variable:"x",
                                end_sweep:function() {stop_graphing()}});
-      var velocity = new Graph({id:'v_canvas',smoothing:10,prescale:20.0,color:'red',line_width:2,variable:"v"});
-      all_graphs = [position,velocity];
+      var velocity =     new Graph({id:'v_canvas',smoothing:10,prescale:20.0,color:'red',line_width:2,variable:"v"});
+      var acceleration = new Graph({id:'a_canvas',smoothing:10,prescale:1.0,color:'green',line_width:2,variable:"a"});
+      all_graphs = [position,velocity,acceleration];
 
       var current_mouse_y = 0; // expressed such that 1.0=top of window, -1.0=bottom
       var t = 0;
@@ -145,7 +149,12 @@
         var previous_y = current_mouse_y;
         if (previous_time>=0) {previous_y = position.raw_data[previous_time];}
         position.new_data_point(current_mouse_y);
-        velocity.new_data_point(current_mouse_y-previous_y);
+        var current_v = current_mouse_y-previous_y;
+        velocity.new_data_point(current_v);
+        var previous_v = current_v;
+        if (previous_time>=0) {previous_v = velocity.raw_data[previous_time];}
+        // acceleration.new_data_point(current_v-previous_v);
+        acceleration.new_data_point(velocity.raw_data[clock]-velocity.raw_data[clock-5]);
         clock = clock+1;
         if (clock>position.raw_buffer_size-1) {clock=0}
       }
@@ -189,7 +198,6 @@
         function transform_y(y) {return y_scale*(1.0-y)}
         var start_at = graph.last_valid_time;
         if (is_from_scratch) {start_at=1;}
-        if (clock%100==0) {console.log("drawing "+graph.variable+", clock="+clock+" start_at="+start_at+", last="+graph.last_valid_time)} // qwe
         for (var i=start_at; i<=graph.last_valid_time; i++) {
           var x = i*x_scale;
           var y1 = graph.data[i-1];
@@ -203,12 +211,13 @@
       }
     
       function handle_resize_canvas() {
-        position.canvas.width = window.innerWidth;
-        position.canvas.height = window.innerHeight/2;
-        velocity.canvas.width = window.innerWidth;
-        velocity.canvas.height = window.innerHeight/2;
-        redraw(position,true);
-        redraw(velocity,true);
+        for (var i=0; i<all_graphs.length; i++) {
+          var g = all_graphs[i];
+          g.last_valid_time = -1;
+          g.canvas.width = window.innerWidth;
+          g.canvas.height = window.innerHeight/2;
+          redraw(g,true);
+        }
       }
 
       function get_mouse_position(canvas, event) {
