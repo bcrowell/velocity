@@ -6,6 +6,7 @@
 // If invoked with url like velocity.html?foo, we use the query string foo for options.
 // Options:
 //   noa = don't show acceleration graph
+//   ... see more options in source code
 
 (function() {
 
@@ -64,7 +65,6 @@
         recognized = true;
       }
       if (recognized) {
-        // console.log(option+"="+value);
         log_option(option,value);
       }
       else {
