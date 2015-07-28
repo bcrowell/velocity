@@ -23,5 +23,9 @@ total variation denoising:
 numerical differentiation in the presence of noise:
   * Holoborodko, "Smooth noise-robust differentiators," http://www.holoborodko.com/pavel/numerical-methods/numerical-derivative/smooth-low-noise-differentiators/
 
-Currently I'm doing the definition using Holoborodko's method, and after that some smoothing by convolution with a triangle
-(haven't tried the TVD technique).
+General ideas about this topic: To get better noise suppression, you always need to have a response to an impulse that is
+wider. Naively just calculating the derivative as y(i)-y(i-1) amplifies noise, and gives poor results.
+Holoborodko says, "One-sided filters have several disadvantages comparing to centered versions.
+For example, to achieve the same noise suppression one-sided filter
+should be much longer than centered one. Also they strongly amplify noise
+in the mid-frequency range."

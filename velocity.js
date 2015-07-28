@@ -3,24 +3,10 @@
 
 // Populate the canvases with IDs x_canvas, v_canvas, and a_canvas with graphs of position, velocity, and acceleration
 // measuring the motion of the mouse.
-// If invoked with url like velocity.html?foo, we use the query string foo for options.
-// Options:
-//   noa = don't show acceleration graph
-//   ... see more options in source code
 
 (function() {
 
-  var fake_data = false; // use fake data for testing?
-  var fake_data_type = '';
-  var smooth_r = 20; // large values like 20 seem necessary to get it to look nice on noisy data
-  var filter_type = 'triangle';
-  var diff_type = 'holo';
-    // 'simple' means y(i)-y(i-1)
-    // 'holo' has noise rejection, see http://www.holoborodko.com/pavel/numerical-methods/numerical-derivative/smooth-low-noise-differentiators/
-  var diff_r = 0;
-  var noise = 0; // amplitude of artificial noise to add; used only with fake data; reasonable value is 0.2
-  var HOLO = [0,42/512,48/512,27/512,8/512,1/512];
-  var DIFF_R_HOLO = 5;
+  var fake_data = false;
 
   // if invoked with url like velocity.html?foo, we use the query string foo for options
   var url = window.location.href;
@@ -41,7 +27,7 @@
         var a_canvas = document.getElementById('a_canvas');
         a_canvas.parentNode.removeChild(a_canvas);
         recognized = true;
-     }
+      }
       if (option=="fake") { // use fake data for testing
         fake_data = true;
         fake_data_type = value;
@@ -52,28 +38,14 @@
         noise = parseFloat(value);
         recognized = true;
       }
-      if (option=="filter") {
-        filter_type = value;
-        recognized = true;
-      }
-      if (option=="r") {
-        smooth_r = parseInt(value);
-        recognized = true;
-      }
-      if (option=="diff") {
-        diff_type = value;
-        recognized = true;
-      }
-      if (recognized) {
+      if (recognized) {  
         log_option(option,value);
       }
       else {
         console.log("illegal option: "+o);
-      }  
+      }
     }
   }
-
-  if (diff_type=="holo") {diff_r = DIFF_R_HOLO;}
 
   function log_option(option,value) {
     if (value!="") {
@@ -94,6 +66,7 @@
   }
   var graphing_is_active = true;
   var interval_id = -1; // for setInterval and clearInterval
+
   var all_graphs = [];
   function stop_graphing() {
     graphing_is_active = false;
@@ -138,8 +111,6 @@
     this.raw_data = filled_array(this.raw_buffer_size,0); // before low-pass filtering
     this.data = filled_array(this.cooked_buffer_size,0); // after low-pass filtering
     this.last_valid_time = -1; // no valid data yet
-    this.shift = 0;
-    if ("shift" in args) {this.shift=args.shift;}
 
     this.canvas.contentEditable=true; // make it able to take keyboard focus
     this.canvas.addEventListener('mouseover',function (event) {
@@ -161,11 +132,7 @@
         var norm = 0;
         var avg = 0;
         for (var i=clock-2*r; i<=clock; i++) {
-          var weight;
-          var x = Math.floor(Math.abs(i-clock)); // floor shouldn't be necessary, but make sure it's an integer
-          if (filter_type=="triangle") {
-            weight = x;
-          }
+          var weight = Math.abs(i-clock); // triangular shape
           // var weight = 1; // square shape
           norm = norm+weight;
           avg = avg+weight*this.raw_data[i];
@@ -182,10 +149,8 @@
   };
   var position =     new Graph({id:'x_canvas',smoothing:1,prescale:1.0,color:'blue',line_width:2,variable:"x",
                            end_sweep:function() {stop_graphing()}});
-  var velocity =     new Graph({id:'v_canvas',smoothing:smooth_r,prescale:16.0,color:'red',line_width:2,variable:"v",
-                           shift:-diff_r});
-  var acceleration = new Graph({id:'a_canvas',smoothing:smooth_r,prescale:2,color:'green',line_width:2,variable:"a",
-                           shift:-2*diff_r});
+  var velocity =     new Graph({id:'v_canvas',smoothing:10,prescale:16.0,color:'red',line_width:2,variable:"v"});
+  var acceleration = new Graph({id:'a_canvas',smoothing:20,prescale:2,color:'green',line_width:2,variable:"a"});
   all_graphs = [position,velocity,acceleration];
 
   var current_mouse_y = 0; // expressed such that 1.0=top of canvas, -1.0=bottom
@@ -233,25 +198,10 @@
     t = t + TIME_INTERVAL;
     var previous_time = clock-1;
     var y = get_data(clock);
-    var previous_y = y;
+    var previous_y = current_mouse_y;
     if (previous_time>=0) {previous_y = position.raw_data[previous_time];}
-    position.new_data_point(y);
-    var current_v = y-previous_y;
-    if (diff_type=="simple") {
-      // keep default
-    }
-    if (diff_type=="holo" && clock>=10) {
-      current_v = 0;
-      var r = diff_r;
-      var center = clock-r; // center of interval
-      for (var i=clock-2*r; i<=clock; i++) {
-        var x = Math.abs(i-center);
-        var s = 0;
-        if (i<center) {s = -1}
-        if (i>center) {s = 1}
-        current_v = current_v + s*HOLO[x]*position.raw_data[i];
-      }
-    }
+    position.new_data_point(current_mouse_y);
+    var current_v = current_mouse_y-previous_y;
     velocity.new_data_point(current_v);
     var previous_v = current_v;
     if (previous_time>=0) {previous_v = velocity.raw_data[previous_time];}
@@ -273,7 +223,7 @@
       graph.context.lineWidth = 1;
       var ngrid = 30;
       for (var i=0; i<ngrid; i++) {
-        var x = graph.canvas_w*(i+graph.shift)/ngrid;
+        var x = graph.canvas_w*i/ngrid;
         graph.context.moveTo(x,0);
         graph.context.lineTo(x,graph.canvas_h);
         graph.context.stroke();
@@ -302,7 +252,7 @@
     var start_at = graph.last_valid_time;
     if (is_from_scratch) {start_at=1;}
     for (var i=start_at; i<=graph.last_valid_time; i++) {
-      var x = (i+graph.shift)*x_scale;
+      var x = i*x_scale;
       var y1 = graph.data[i-1];
       var y2 = graph.data[i];
       graph.context.strokeStyle = graph.color;
