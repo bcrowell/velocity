@@ -175,7 +175,7 @@
     if (fake_data) {
       var x;
       if (fake_data_type=="sine") {
-        x = Math.sin(clock*0.06)+(Math.random()-0.5)*noise; // simulate sine wave plus noise
+        x = Math.sin(clock*0.06)+(Math.random()-0.5)*0.2; // simulate sine wave plus noise
         return 0.01*Math.floor(100*x); // simultate quantization
       }
       if (fake_data_type=="1") {
@@ -198,10 +198,10 @@
     t = t + TIME_INTERVAL;
     var previous_time = clock-1;
     var y = get_data(clock);
-    var previous_y = current_mouse_y;
+    var previous_y = y;
     if (previous_time>=0) {previous_y = position.raw_data[previous_time];}
-    position.new_data_point(current_mouse_y);
-    var current_v = current_mouse_y-previous_y;
+    position.new_data_point(y);
+    var current_v = y-previous_y;
     velocity.new_data_point(current_v);
     var previous_v = current_v;
     if (previous_time>=0) {previous_v = velocity.raw_data[previous_time];}
