@@ -115,11 +115,14 @@
     this.offset = 0; // offset between where we graph the data and the raw array indices; positive means that we graph
                      // it to the right of where we would have otherwise; this doesn't need to be an integer; we need
                      // this because real-time filters require a window into the data before they can start outputting
-    if ("offset" in args) {this.offset=args.offset}
     this.last = -1; // last array index containing valid data
     this.prescale = 1;
     if ("prescale" in args) {this.prescale=args.prescale}
-    if ("filter" in args) {this.filter=args.filter} // optional, for use if this is a child of another buffer
+    if ("filter" in args) { // optional, for use if this is a child of another buffer
+      this.filter=args.filter;
+      this.offset=(this.filter.length-1)/2;
+    } 
+    all_buffers.push(this);
     this.new_data_point_at_clock = function (raw,clock) { 
       while (this.last<clock && !this.is_full()) {
         this.new_data_point(raw); // if we've underflowed, make sure phase remains correct
@@ -146,6 +149,7 @@
                       // link this buffer to another one that is computed from it by real-time filtering
                       // child should have .filter member set
       this.children.push(child);
+      child.offset += this.offset;
     }
   }
 
@@ -259,6 +263,7 @@
     this.context = this.canvas.getContext('2d');
     this.canvas_w = this.context.canvas.width;
     this.canvas_h = this.context.canvas.height;
+    all_graphs.push(this);
     this.has_buffer = function() {
       return (typeof this.buffer != 'undefined');
     };
@@ -272,39 +277,30 @@
     };
   };
 
-  var filter_length;
-  var offset;
-
-  var filter_length = 21; 
   var x_raw = new Buffer({name:'x_raw',prescale:1.0});
-  var x_smoothed = new Buffer({name:'x_smoothed',offset:(filter_length-1)/2,
-             filter:new RealTimeFilter({update:update_triangle_filter,length:filter_length})});
+  var x_smoothed = new Buffer({name:'x_smoothed',
+             filter:new RealTimeFilter({update:update_triangle_filter,length:21})});
   x_raw.add_child(x_smoothed);
 
-  filter_length = 21; 
-  var v_holo = new Buffer({name:'v_holo',prescale:10.0,offset:(filter_length-1)/2,
-             filter:new RealTimeFilter({update:update_holo_filter,length:filter_length})});
+  var v_holo = new Buffer({name:'v_holo',prescale:10.0,
+             filter:new RealTimeFilter({update:update_holo_filter,length:21})});
   x_raw.add_child(v_holo);
 
 
-  filter_length = 3; // making this too large causes oscillations on step function input
-  var a_holo = new Buffer({name:'a_holo',prescale:200.0,offset:x_smoothed.offset+(filter_length-1)/2,
-             filter:new RealTimeFilter({update:update_holo2_filter,length:filter_length})});
+  var a_holo = new Buffer({name:'a_holo',prescale:200.0,
+             filter:new RealTimeFilter({update:update_holo2_filter,length:3})});
+                      // making filter's length too large causes oscillations on step function input
   x_smoothed.add_child(a_holo);
 
-  filter_length = 11;
-  var a_holo_smoothed = new Buffer({name:'a_holo_smoothed',prescale:1.0,offset:a_holo.offset+(filter_length-1)/2,
-             filter:new RealTimeFilter({update:update_triangle_filter,length:filter_length})});
+  var a_holo_smoothed = new Buffer({name:'a_holo_smoothed',prescale:1.0,
+             filter:new RealTimeFilter({update:update_triangle_filter,length:11})});
   a_holo.add_child(a_holo_smoothed);
-
-  all_buffers = [x_raw,x_smoothed,v_holo,a_holo,a_holo_smoothed];
 
   var position =     new Graph({id:'x_canvas',buffer:x_smoothed,
                            color:'blue',line_width:2,variable:"x",
                            end_sweep:function() {stop_graphing()}});
   var velocity =     new Graph({id:'v_canvas',buffer:v_holo,color:'red',line_width:2,variable:"v"});
   var acceleration = new Graph({id:'a_canvas',buffer:a_holo_smoothed,color:'green',line_width:2,variable:"a"});
-  all_graphs = [position,velocity,acceleration];
 
   var current_mouse_y = 0; // expressed such that 1.0=top of canvas, -1.0=bottom
   var t = 0;
