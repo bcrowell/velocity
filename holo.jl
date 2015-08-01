@@ -1,3 +1,5 @@
+N=41 # the length of the filter; should be odd
+
 function fact(x)
   # factorial(BigInt(x))
   gamma(x+1)
@@ -40,7 +42,6 @@ function holo2_numerator(k,M,N)
   end
 end
 
-N=21 # is the length
 m=(N-3)/2
 M=(N-1)/2
 # println("m=",m," N=",N," M=",M)

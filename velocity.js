@@ -161,12 +161,17 @@
   var holo_21 = 
     [0,0.03203582763671875,0.048053741455078125,0.0443572998046875,0.029571533203125,0.0147857666015625,
      0.0055446624755859375,0.001522064208984375,0.0002899169921875,3.4332275390625e-5,1.9073486328125e-6];
+  var holo_41 = [0,0.011940065487578977,0.020623749478545506,0.02421048851829255,0.022865461378387405,0.018292369102709927,0.012663947840337645,0.007660906718228944,0.004064970911713317,0.0018923140451079234,0.0007709427591180429,0.00027356033388059586,8.39332842588192e-5,2.2043084754841402e-5,4.887380782747642e-6,8.976821845863013e-7,1.3298995327204466e-7,1.5275873010978103e-8,1.2769305612891915e-9,6.912159733474255e-11,1.8189894035458565e-12];
   // second derivative:
   var holo2_21 = [-0.0370941162109375,-0.0269775390625,-0.00505828857421875,0.012451171875,0.017120361328125,0.012451171875,0.006031036376953125,0.00201416015625,0.00045013427734375,6.103515625e-5,3.814697265625e-6];
+  var holo2_41 = [-0.01285853206354659,-0.011021598911611363,-0.006345769070321694,-0.0008277090091723949,0.003517763288982678,0.005628421262372285,0.005628421262372285,0.004377660981845111,0.0028142106311861426,0.0015311031020246446,0.0007116394699551165,0.00028312538051977754,9.612871872377582e-5,2.7651680284179747e-5,6.659727660007775e-6,1.3196695363149047e-6,2.0971492631360888e-7,2.5713234208524227e-8,2.2846506908535957e-9,1.3096723705530167e-10,3.637978807091713e-12];
+
 
   var update_holo_filter = function(parent,child,length) { // length should be odd
-    if (length!=21) {die("Holoborodko filter with illegal length "+length)}
-    var holo = holo_21;
+    if (length!=21 && length!=41) {die("Holoborodko filter with illegal length "+length)}
+    var holo;
+    if (length==21) { holo=holo_21 }
+    if (length==41) { holo=holo_41 }
     var o = length-1; // offset between last data in parent and last computable piece of data in child
     var pl = parent.last;
     if (pl>child.last+o) {
@@ -185,8 +190,10 @@
   };
 
   var update_holo2_filter = function(parent,child,length) { // length should be odd
-    if (length!=21) {die("Holoborodko filter with illegal length "+length)}
-    var holo2 = holo2_21;
+    if (length!=21 && length!=41) {die("Holoborodko filter with illegal length "+length)}
+    var holo2;
+    if (length==21) { holo2=holo2_21 }
+    if (length==41) { holo2=holo2_41 }
     var o = length-1; // offset between last data in parent and last computable piece of data in child
     var pl = parent.last;
     if (pl>child.last+o) {
@@ -256,15 +263,25 @@
     };
   };
 
+  var filter_length;
+  var offset;
+
   var filter_length = 21; 
   var offset = (filter_length-1)/2;
   var x_raw = new Buffer({name:'x_raw',prescale:1.0});
   var x_smoothed = new Buffer({name:'x_smoothed',offset:offset,
              filter:new RealTimeFilter({update:update_triangle_filter,length:filter_length})});
   x_raw.add_child(x_smoothed);
+
+  filter_length = 41; 
+  offset = (filter_length-1)/2;
   var v_holo = new Buffer({name:'v_holo',prescale:5.0,offset:offset,
              filter:new RealTimeFilter({update:update_holo_filter,length:filter_length})});
   x_raw.add_child(v_holo);
+
+
+  filter_length = 41; 
+  offset = (filter_length-1)/2;
   var a_holo = new Buffer({name:'a_holo',prescale:30.0,offset:offset,
              filter:new RealTimeFilter({update:update_holo2_filter,length:filter_length})});
   x_raw.add_child(a_holo);
