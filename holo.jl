@@ -1,4 +1,4 @@
-N=41 # the length of the filter; should be odd
+N=3 # the length of the filter; should be odd
 
 function fact(x)
   # factorial(BigInt(x))
